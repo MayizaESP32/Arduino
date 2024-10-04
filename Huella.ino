@@ -22,6 +22,7 @@ void setup() {
   server.on("/save", HTTP_POST, handleSave);
   server.on("/saveHuella", HTTP_POST, handleSaveHuella);
   server.on("/users", HTTP_GET, handleListUsers);
+  server.on("/validar", HTTP_POST, handleValidar);
  
   server.begin();
  
@@ -69,7 +70,6 @@ void handleSave() {
 }
  
 void handleSaveHuella() {
-  // Esta función se mantiene igual por si necesitas actualizar la huella más tarde
   if (server.hasArg("plain") == false) {
     server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Body not received\"}");
     return;
@@ -127,4 +127,44 @@ void handleListUsers() {
   String response;
   serializeJson(doc, response);
   server.send(200, "application/json", response);
+}
+ 
+void handleValidar() {
+  if (server.hasArg("plain") == false) {
+    server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Body not received\"}");
+    return;
+  }
+ 
+  String body = server.arg("plain");
+  DynamicJsonDocument doc(1024);
+  DeserializationError error = deserializeJson(doc, body);
+ 
+  if (error) {
+    server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Failed to parse JSON\"}");
+    return;
+  }
+ 
+  String usuario = doc["usuario"];
+  String contrasena = doc["contrasena"];
+ 
+  if (usuario != "" && contrasena != "") {
+    int userCount = preferences.getInt("userCount", 0);
+    bool userFound = false;
+    for (int i = 0; i < userCount; i++) {
+      String userKey = "user" + String(i);
+      if (preferences.getString(userKey.c_str(), "") == usuario) {
+        if (preferences.getString((userKey + "_pass").c_str(), "") == contrasena) {
+          userFound = true;
+          break;
+        }
+      }
+    }
+    if (userFound) {
+      server.send(200, "application/json", "{\"status\":\"success\",\"message\":\"Usuario autenticado correctamente\"}");
+    } else {
+      server.send(401, "application/json", "{\"status\":\"not_registered\",\"message\":\"Usuario no registrado o contraseña incorrecta\"}");
+    }
+  } else {
+    server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Falta usuario o contraseña\"}");
+  }
 }
